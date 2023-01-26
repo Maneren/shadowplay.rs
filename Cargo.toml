@@ -1,0 +1,20 @@
+[package]
+name = "shadowplay"
+description = "Record your screen in the background"
+version = "0.1.0"
+author = "Maneren"
+repository = ""
+license = "MIT"
+edition = "2021"
+
+[dependencies]
+env-libvpx-sys = { version = "5", features = ["generate"] }
+quest = "0.3"
+scrap = "0.5"
+webm = "1"
+vpx-encode = { path = "../vpx-encode/", features = [
+  "vp9",
+] } # git = "https://github.com/Maneren/vpx-encode", 
+hotkey = { git = "https://github.com/jamesbirtles/hotkey-rs" }
+clap = { version = "4.0", features = ["derive"] }
+captrs = "0.3"
