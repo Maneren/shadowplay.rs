@@ -44,15 +44,11 @@ pub fn argb_to_yuv420_with_subsampling(width: usize, height: usize, src: &[u8]) 
 
   let mut yuv = vec![0; frame_size * 3 / 2];
 
+  let mut y_index = 0;
   let mut u_index = frame_size;
   let mut v_index = u_index + u_size;
 
-  let mut column_index = 0;
-  let mut row_index = 0;
-
-  let get_pixel = |idx| {
-    let idx = idx * 4;
-
+  let get_pixel_idx = |idx| {
     let r = i32::from(src[idx + 2]);
     let g = i32::from(src[idx + 1]);
     let b = i32::from(src[idx]);
@@ -60,39 +56,39 @@ pub fn argb_to_yuv420_with_subsampling(width: usize, height: usize, src: &[u8]) 
     [r, g, b]
   };
 
+  let get_pixel = |x, y| get_pixel_idx((x + y * width) * 4);
+
   let calc_y = |[r, g, b]: [i32; 3]| clamp((66 * r + 129 * g + 25 * b + 128) / 256 + 16);
   let calc_u = |[r, g, b]: [i32; 3]| (-38 * r - 74 * g + 112 * b + 128) / 256 + 128;
   let calc_v = |[r, g, b]: [i32; 3]| (112 * r - 94 * g - 18 * b + 128) / 256 + 128;
 
-  for i in 0..frame_size {
-    let pixel = get_pixel(i);
+  for y in 0..height {
+    for x in 0..width {
+      let pixel = get_pixel_idx(y_index * 4);
 
-    yuv[i] = calc_y(pixel);
+      yuv[y_index] = calc_y(pixel);
 
-    if column_index % 2 == 0 && row_index % 2 == 0 {
-      // use average subsampling
-      let sample = [
-        pixel,
-        get_pixel(i + 1),
-        get_pixel(i + width),
-        get_pixel(i + width + 1),
-      ];
+      y_index += 1;
 
-      let u = sample.into_iter().map(calc_u).sum::<i32>() / 4;
-      let v = sample.into_iter().map(calc_v).sum::<i32>() / 4;
+      if x % 2 == 0 && y % 2 == 0 {
+        // use subsampling for every 2 by 2 block
+        let sample = [
+          pixel,
+          get_pixel(x + 1, y),
+          get_pixel(x, y + 1),
+          get_pixel(x + 1, y + 1),
+        ];
 
-      yuv[u_index] = clamp(u);
-      yuv[v_index] = clamp(v);
+        // average the values
+        let u = sample.into_iter().map(calc_u).sum::<i32>() / 4;
+        let v = sample.into_iter().map(calc_v).sum::<i32>() / 4;
 
-      u_index += 1;
-      v_index += 1;
-    }
+        yuv[u_index] = clamp(u);
+        yuv[v_index] = clamp(v);
 
-    column_index += 1;
-
-    if column_index == width {
-      row_index += 1;
-      column_index = 0;
+        u_index += 1;
+        v_index += 1;
+      }
     }
   }
 
