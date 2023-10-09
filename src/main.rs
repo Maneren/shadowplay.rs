@@ -164,22 +164,10 @@ fn main() {
   let start = Instant::now();
   let stop = Arc::new(AtomicBool::new(false));
 
-  {
+  thread::spawn({
     let stop = stop.clone();
-
-    let mut hk = hotkey::Listener::new();
-
-    let hk_res = hk
-      .register_hotkey(hotkey::modifiers::SHIFT, 0xFFC9 /* F12 */, move || {
-        println!("Alt-F12 pressed!");
-        stop.store(true, Ordering::Release);
-      })
-      .unwrap();
-
-    println!("{hk_res:?}");
-
-    hk.listen();
-  }
+    move || setup_hotkey(stop)
+  });
 
   thread::spawn({
     let stop = stop.clone();
@@ -204,26 +192,14 @@ fn main() {
 
     match capturer.frame() {
       Ok(frame) => {
-        let start = Instant::now();
-        // let yuv_frame = convert::argb_to_yuv420(width, height, &frame);
-        let yuv_frame = convert::argb_to_yuv420_with_subsampling(width, height, &frame);
-        // let yuv_frame = convert::argb_to_yuv444(width, height, &frame);
-        let elapsed = start.elapsed();
-        println!("{elapsed:?}");
-
-        // add frame to the encoding queue
-        let encoded = vpx_encoder
-          .encode(
-            time.as_millis() as i64,
-            &yuv_frame,
-            vpx_encode::vpx_img_fmt::VPX_IMG_FMT_I420,
-          )
-          .expect("Can't encode frame");
-
-        // if there are any frames done encoding add them to the track
-        for frame in encoded {
-          video_track.add_frame(frame.data, frame.pts as u64 * 1_000_000, frame.key);
-        }
+        process_frame(
+          width,
+          height,
+          &frame,
+          &mut vpx_encoder,
+          time.as_millis(),
+          &mut video_track,
+        );
       }
       Err(e) if e.kind() == io::ErrorKind::WouldBlock => {} // Wait.
       Err(e) => {
@@ -247,6 +223,50 @@ fn main() {
   }
 
   let _ = webm.finalize(None);
+}
+
+fn process_frame(
+  width: usize,
+  height: usize,
+  frame: &scrap::Frame,
+  vpx_encoder: &mut vpx_encode::Encoder,
+  millis: u128,
+  video_track: &mut mux::VideoTrack,
+) {
+  let start = Instant::now();
+  let yuv_frame = convert::argb_to_yuv420(width, height, frame);
+  // let yuv_frame = convert::argb_to_yuv420_with_subsampling(width, height, frame);
+  // let yuv_frame = convert::argb_to_yuv444(width, height, frame);
+  let elapsed = start.elapsed();
+  println!("{elapsed:?}");
+
+  // add frame to the encoding queue
+  let encoded = vpx_encoder
+    .encode(
+      millis as i64,
+      &yuv_frame,
+      vpx_encode::vpx_img_fmt::VPX_IMG_FMT_I444,
+    )
+    .expect("Can't encode frame");
+
+  // if there are any frames done encoding add them to the track
+  for encoded_frame in encoded {
+    video_track.add_frame(
+      encoded_frame.data,
+      encoded_frame.pts as u64 * 1_000_000,
+      encoded_frame.key,
+    );
+  }
+}
+
+fn setup_hotkey(stop: Arc<AtomicBool>) {
+  let mut hk = hotkey::Listener::new();
+  hk.register_hotkey(hotkey::modifiers::SHIFT, 0xFFC9 /* F12 */, move || {
+    println!("Alt-F12 pressed!");
+    stop.store(true, Ordering::Release);
+  })
+  .unwrap();
+  hk.listen();
 }
 
 fn get_output_file(path: &PathBuf) -> Option<File> {
