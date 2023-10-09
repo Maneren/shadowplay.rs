@@ -130,7 +130,7 @@ fn main() {
     .tmp
     .map_or_else(|| PathBuf::from("/tmp"), PathBuf::from);
 
-  let Some(display) = get_displays() else { return; };
+  let Some(display) = get_display() else { return; };
 
   // Setup the recorder.
   let mut capturer = Capturer::new(display).expect("Can't initialize capturer");
@@ -274,7 +274,7 @@ fn get_output_file(path: &PathBuf) -> Option<File> {
   Some(out)
 }
 
-fn get_displays() -> Option<Display> {
+fn get_display() -> Option<Display> {
   let displays = Display::all().expect("Displays couldn't be initialized");
 
   let i = if displays.is_empty() {
