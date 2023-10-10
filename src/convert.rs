@@ -36,7 +36,6 @@ pub fn argb_to_yuv420(width: usize, height: usize, src: &[u8]) -> Vec<u8> {
 
   yuv
 }
-
 #[allow(dead_code)]
 pub fn argb_to_yuv420_with_subsampling(width: usize, height: usize, src: &[u8]) -> Vec<u8> {
   let frame_size = width * height;
@@ -64,7 +63,7 @@ pub fn argb_to_yuv420_with_subsampling(width: usize, height: usize, src: &[u8]) 
 
   for y in 0..height {
     for x in 0..width {
-      let pixel = get_pixel_idx(y_index * 4);
+      let pixel = get_pixel(x, y);
 
       yuv[y_index] = calc_y(pixel);
 
