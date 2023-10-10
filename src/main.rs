@@ -39,7 +39,8 @@ mod convert;
 use std::{
   env, fmt,
   fs::{File, OpenOptions},
-  io,
+  io::{self, Write},
+  ops::Deref,
   path::PathBuf,
   sync::{
     atomic::{AtomicBool, Ordering},
@@ -126,9 +127,9 @@ fn main() {
 
   println!("{path:?}");
 
-  let _tmp = args
+  let tmp = args
     .tmp
-    .map_or_else(|| PathBuf::from("/tmp"), PathBuf::from);
+    .map_or_else(|| PathBuf::from("/tmp/shadowplay-rs/part1"), PathBuf::from);
 
   let Some(display) = get_display() else { return; };
 
@@ -178,6 +179,8 @@ fn main() {
     }
   });
 
+  let mut file = File::create(tmp).expect("Can't open tmp file");
+
   let seconds_per_frame = args
     .fps
     .map(|fps| Duration::from_nanos(1_000_000_000 / fps));
@@ -201,7 +204,7 @@ fn main() {
           &mut video_track,
         );
       }
-      Err(e) if e.kind() == io::ErrorKind::WouldBlock => {} // Wait.
+      Err(e) if e.kind() == io::ErrorKind::WouldBlock => { /* Wait */ }
       Err(e) => {
         println!("{e}");
         break;
@@ -216,7 +219,7 @@ fn main() {
     }
   }
 
-  // End things.
+  // Wait for remaining frames to complete
   let mut frames = vpx_encoder.finish().expect("Can't finish encoding");
   while let Some(frame) = frames.next().expect("Can't read frame") {
     video_track.add_frame(frame.data, frame.pts as u64 * 1_000_000, frame.key);
